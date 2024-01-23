@@ -47,7 +47,7 @@ struct OsuTimingPoint {
 }
 
 impl OsuTimingPoint {
-    fn new(timing_point: ReaperTimingPoint) -> OsuTimingPoint {
+    fn new(timing_point: ReaperTimingPoint, volume: i64) -> OsuTimingPoint {
         let time = timing_point.convert_to_osu_time();
         let beat_length = timing_point.convert_to_osu_beat_length();
         let meter = timing_point.convert_to_osu_meter();
@@ -58,14 +58,14 @@ impl OsuTimingPoint {
             meter,
             sample_set: 0,
             sample_index: 0,
-            volume: 100,
+            volume,
             uninherited: 1,
             effects: 0,
         }
     }
 }
 
-fn convert_to_osu(contents: &str) -> Vec<OsuTimingPoint> {
+fn convert_to_osu(contents: &str, volume: i64) -> Vec<OsuTimingPoint> {
     let mut old_meter: &str = "";
 
     contents.lines()
@@ -82,7 +82,7 @@ fn convert_to_osu(contents: &str) -> Vec<OsuTimingPoint> {
             split_line
         }) // "inherit" previous meter if no change, fuck you REAPER
         .map(ReaperTimingPoint::new) // convert to reaper timing points
-        .map(OsuTimingPoint::new) // convert to osu timing point format
+        .map(|reaper_point| OsuTimingPoint::new(reaper_point, volume)) // convert to osu timing point format
         .collect()
 }
 
@@ -92,7 +92,22 @@ fn print_in_osu_format(osu_timing_points: Vec<OsuTimingPoint>) {
     }
 }
 
-pub fn run(contents: &str) {
-    let osu_points = convert_to_osu(contents);
-    print_in_osu_format(osu_points);
+pub fn run(contents: &str, volume: i64, write_path: Option<String>) {
+    if let Some(_write_path) = write_path {
+        eprintln!("Writing to file not implemented");
+        return
+    }
+
+    let osu_points = convert_to_osu(contents, volume);
+    print_in_osu_format(osu_points)
 }
+
+
+
+
+
+
+
+
+
+

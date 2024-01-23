@@ -1,31 +1,28 @@
-use std::{fs, env};
+use std::fs;
+use clap::Parser;
 
-struct Config {
-    read_path: String
+#[derive(Parser)]
+#[command(author="Mäkeli", version, about="Convert REAPER timing to osu!", long_about = None)]
+struct Args {
+    /// Reaper read path (.RPP file)
+    read_path: String,
+
+    #[arg(short, long)]
+    /// osu! write path (.osu file)
+    write_path: Option<String>,
+
+    #[arg(short, long, value_parser = clap::value_parser!(i64).range(0..100))]
+    /// Hitobject volume percentage
+    volume: Option<i64>,
 }
 
-impl Config {
-    fn new(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
-        args.next();
-
-        let read_path = match args.next() {
-            Some(arg) => arg,
-            None => return Err("Didn't specify read path"),
-        };
-        
-        Ok(Config {
-            read_path
-        })
-    }
-}
-
-fn run(config: Config) {
-    let contents: String = fs::read_to_string(config.read_path).expect("Should have been able to read file");
-    reaper_to_osu_timing::run(&contents);
+fn run(args: Args) {
+    let volume = args.volume.unwrap_or(100);
+    let contents: String = fs::read_to_string(args.read_path).expect("Should have been able to read file");
+    reaper_to_osu_timing::run(&contents, volume, args.write_path);
 }
 
 fn main() {
-    let args = env::args();
-    let config: Config = Config::new(args).unwrap();
-    run(config);
+    let args = Args::parse();
+    run(args);
 }
