@@ -1,9 +1,12 @@
 static THOUSAND: f64 = 1000.0;
 static TIME_IN_MILLISECONDS: f64 = THOUSAND * 60.0;
+static RANDOM_METER_VALUE: i64 = 65536;
+static METER_DENOMINATOR: i64 = 4;
 
 struct ReaperTimingPoint {
     time: f64, // Position in seconds
-    bpm: f64 // BPM
+    bpm: f64, // BPM
+    meter: Option<i64> // time signature
 }
 
 impl ReaperTimingPoint {
@@ -11,10 +14,20 @@ impl ReaperTimingPoint {
         let data: Vec<&str> = timing_point.split(' ').collect();
         let time: f64 = data[1].parse().unwrap();
         let bpm: f64 = data[2].parse().unwrap();
+        
+        if data.len() >= 5 {
+            let meter: Option<i64> = data[4].parse().ok();
+            return ReaperTimingPoint {
+                time,
+                bpm,
+                meter
+            }
+        }
 
         ReaperTimingPoint {
             time,
-            bpm
+            bpm,
+            meter: None
         }
     }
 
@@ -30,7 +43,7 @@ impl ReaperTimingPoint {
 struct OsuTimingPoint {
     time: i32, // Position in milliseconds
     beat_length: f64, // beatLength = 1 / BPM * 1000 * 60
-    meter: i32, // Amount of beats in a measure
+    meter: i64, // Amount of beats in a measure
     sample_set: i32, // (0 = default, 1 = normal, 2 = soft, 3 = drum)
     sample_index: i32, // Custom sample index for hit objects. 0 by default
     volume: i32, // Hitobject volume percentage
@@ -39,14 +52,14 @@ struct OsuTimingPoint {
 }
 
 impl OsuTimingPoint {
-    fn new(timing_point: ReaperTimingPoint) -> OsuTimingPoint {
+    fn new(timing_point: ReaperTimingPoint, meter: i64) -> OsuTimingPoint {
         let time = timing_point.convert_to_osu_time();
         let beat_length = timing_point.convert_to_osu_beat_length();
 
         OsuTimingPoint {
             time,
             beat_length,
-            meter: 4,
+            meter,
             sample_set: 0,
             sample_index: 0,
             volume: 100,
@@ -56,18 +69,24 @@ impl OsuTimingPoint {
     }
 }
 
-fn filter_reaper_timing_points(contents: &str) -> Vec<&str> {
+fn convert_meter(meter: i64) -> i64 {
+    meter - RANDOM_METER_VALUE * METER_DENOMINATOR
+}
+
+fn convert_to_osu(contents: &str) -> Vec<OsuTimingPoint> {
+    let mut old_meter: i64 = 0;
+
     contents.lines()
         .filter(|line| line.contains("PT "))
-        .map(|line| line.trim()).collect()
-}
+        .map(|line| line.trim()) // parse reaper timing points and trim whitespace
+        .map(ReaperTimingPoint::new) // convert to reaper timing points
+        .map(|timing_point| {
+            if let Some(meter) = timing_point.meter {
+                old_meter = convert_meter(meter);
+            }
 
-fn read_reaper_timing_points(timing_points: Vec<&str>) -> Vec<ReaperTimingPoint> {
-    timing_points.into_iter().map(ReaperTimingPoint::new).collect()
-}
-
-fn convert_reaper_to_osu(reaper_timing_points: Vec<ReaperTimingPoint>) -> Vec<OsuTimingPoint> {
-    reaper_timing_points.into_iter().map(OsuTimingPoint::new).collect()
+            OsuTimingPoint::new(timing_point, old_meter)
+        }).collect() // convert to osu timing point format
 }
 
 fn print_in_osu_format(osu_timing_points: Vec<OsuTimingPoint>) {
@@ -77,8 +96,6 @@ fn print_in_osu_format(osu_timing_points: Vec<OsuTimingPoint>) {
 }
 
 pub fn run(contents: &str) {
-    let filtered_points = filter_reaper_timing_points(contents);
-    let reaper_points = read_reaper_timing_points(filtered_points);
-    let osu_points = convert_reaper_to_osu(reaper_points);
+    let osu_points = convert_to_osu(contents);
     print_in_osu_format(osu_points);
 }
